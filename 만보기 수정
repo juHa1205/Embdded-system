@@ -1,0 +1,74 @@
+#include <Wire.h>
+#include <MPU6050.h>
+
+MPU6050 mpu;
+
+const int buttonPin = 2;  // 버튼 핀
+int stepCount = 0;
+float previousAccel = 0.0;
+float threshold = 0.85;  // 민감도를 더 높임 (값을 낮춰서 가속도 변화에 더 민감하게 반응)
+unsigned long lastUpdateTime = 0;
+const int updateInterval = 50;  // 카운트를 빠르게 갱신하기 위해 업데이트 주기 설정 (50ms)
+bool isDown = false;
+bool isDowning = false;
+int cnt = 0;
+
+void setup() {
+  Wire.begin();
+  mpu.initialize();
+  
+  Serial.begin(9600);  // Serial 모니터 초기화
+  Serial.println("Steps: 0");
+  
+  pinMode(buttonPin, INPUT_PULLUP);  // 풀업 저항으로 버튼 설정
+}
+
+void loop() {
+  // 버튼이 눌리면 카운트 리셋 및 Serial 모니터에 'RESET' 표시
+  if (digitalRead(buttonPin) == LOW) {
+    stepCount = 0;  // 걸음 수 리셋
+    Serial.println("RESET");
+    delay(1000);  // 1초 동안 RESET 표시
+    Serial.println("Steps: 0");
+  }
+  float accelX = mpu.getAccelerationX() / 16384.0;
+  float accelY = mpu.getAccelerationY() / 16384.0;
+  float accelZ = mpu.getAccelerationZ() / 16384.0;
+  float dist = accelX*accelX + accelY*accelY + accelZ*accelZ;
+  //Serial.println(String(accelX)+", "+String(accelY)+", "+String(accelZ));
+  
+  if(dist>1.12){
+    if(!isDowning) cnt = 0;
+    isDowning = true;
+    cnt++;
+  }else if(dist<1.01){
+    if(isDowning) cnt = 0;
+    isDowning = false;
+    cnt++;
+  }
+  if(cnt>15){
+    if(isDown&&!isDowning){
+      stepCount ++;
+    }
+    isDown = isDowning;
+  }
+  delay(10);
+  Serial.println(String(stepCount));
+
+  // 일정 간격으로 가속도 데이터를 업데이트 (업데이트 주기 적용)
+  // if (millis() - lastUpdateTime > updateInterval) {
+  //   lastUpdateTime = millis();  // 마지막 업데이트 시간 갱신
+
+  //   // 가속도 센서 값 읽기
+  //   float accelX = mpu.getAccelerationX() / 16384.0;
+  //   float accelChange = abs(accelX - previousAccel);
+
+  //   if (accelChange > threshold) {
+  //     stepCount++;
+  //     Serial.print("Steps: ");
+  //     Serial.println(stepCount);
+  //   }
+
+  //   previousAccel = accelX;
+  // }
+}
