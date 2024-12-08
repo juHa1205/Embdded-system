@@ -1,0 +1,78 @@
+#include <Wire.h>
+#include <MPU6050.h>
+
+MPU6050 mpu;
+
+const int buttonPin = 2;  // 버튼 핀
+int stepCount = 0;
+float previousAccel = 0.0;
+float threshold = 0.85;
+unsigned long lastUpdateTime = 0;
+const int updateInterval = 10;  // 10ms 간격으로 센서 데이터 확인
+bool isDown = false;
+bool isDowning = false;
+int cnt = 0;
+int buzzer = 7;
+unsigned long lastBuzzTime = 0;  // 부저의 상태를 제어하기 위한 시간 변수
+const int buzzDuration = 100;   // 부저 울리는 시간 (ms)
+
+void setup() {
+  Wire.begin();
+  mpu.initialize();
+  
+  Serial.begin(9600);  // Serial 모니터 초기화
+  Serial.println("Steps: 0");
+  
+  pinMode(buttonPin, INPUT_PULLUP);  // 풀업 저항으로 버튼 설정
+  pinMode(buzzer, OUTPUT);
+}
+
+void loop() {
+  // 버튼이 눌리면 카운트 리셋 및 Serial 모니터에 'RESET' 표시
+  if (digitalRead(buttonPin) == LOW) {
+    stepCount = 0;  // 걸음 수 리셋
+    Serial.println("RESET");
+    delay(1000);  // 1초 동안 RESET 표시
+    Serial.println("Steps: 0");
+    return;  // 리셋 후 즉시 종료
+  }
+
+  unsigned long currentTime = millis();
+
+  // 센서 데이터 주기적으로 확인
+  if (currentTime - lastUpdateTime >= updateInterval) {
+    lastUpdateTime = currentTime;
+
+    float accelX = mpu.getAccelerationX() / 16384.0;
+    float accelY = mpu.getAccelerationY() / 16384.0;
+    float accelZ = mpu.getAccelerationZ() / 16384.0;
+
+    float dist = accelX * accelX + accelY * accelY + accelZ * accelZ;
+
+    if (dist > 1.17) {
+      if (!isDowning) cnt = 0;
+      isDowning = true;
+      cnt++;
+    } else if (dist < 0.96) {
+      if (isDowning) cnt = 0;
+      isDowning = false;
+      cnt++;
+    }
+
+    if (cnt > 11) {
+      if (isDown && !isDowning) {
+        stepCount++;
+        lastBuzzTime = currentTime;  // 부저 울림 시간 기록
+        Serial.println(String(stepCount));  // 걸음 수 출력
+      }
+      isDown = isDowning;
+    }
+  }
+
+  // 부저 제어 (비차단 방식)
+  if (millis() - lastBuzzTime < buzzDuration) {
+    tone(buzzer, 262);  // C4음
+  } else {
+    noTone(buzzer);
+  }
+}
